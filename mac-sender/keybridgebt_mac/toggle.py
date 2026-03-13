@@ -2,7 +2,7 @@
 Global hotkey toggle for pausing/resuming HID forwarding.
 
 Uses Quartz CGEventTap to intercept key combos system-wide.
-Default: Cmd+Shift+F12 — configurable.
+Default: Ctrl+Option+K — configurable.
 
 See docs/ARCHITECTURE.md §4.9 for spec.
 """
@@ -13,11 +13,11 @@ import Quartz
 
 log = logging.getLogger(__name__)
 
-kCGEventFlagMaskCommand = 1 << 20
-kCGEventFlagMaskShift = 1 << 17
+kCGEventFlagMaskControl = 1 << 18
+kCGEventFlagMaskAlternate = 1 << 19
 
-DEFAULT_MODIFIERS = kCGEventFlagMaskCommand | kCGEventFlagMaskShift
-DEFAULT_KEYCODE = 111  # macOS virtual keycode for F12
+DEFAULT_MODIFIERS = kCGEventFlagMaskControl | kCGEventFlagMaskAlternate
+DEFAULT_KEYCODE = 40  # macOS virtual keycode for K
 
 
 class HotkeyMonitor:
@@ -87,7 +87,7 @@ class HotkeyMonitor:
         Quartz.CFRunLoopAddSource(loop, source, Quartz.kCFRunLoopDefaultMode)
         Quartz.CGEventTapEnable(self._tap, True)
 
-        log.info("Hotkey listener active (Cmd+Shift+F12)")
+        log.info("Hotkey listener active (Ctrl+Option+K)")
 
         while self._running:
             Quartz.CFRunLoopRunInMode(Quartz.kCFRunLoopDefaultMode, 0.2, False)

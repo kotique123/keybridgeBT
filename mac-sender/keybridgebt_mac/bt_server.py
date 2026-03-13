@@ -41,31 +41,38 @@ class RFCOMMDelegate(NSObject):
         if self is None:
             return None
         self.server = server
+        self._pending_channel = None
         return self
 
     # ------------------------------------------------------------------ #
     # Incoming-connection notification callback                           #
-    # Called by IOBluetooth when a client opens RFCOMM_CHANNEL_ID        #
-    # Signature matches registerForChannelOpenNotifications selector      #
+    # Called by IOBluetooth when a remote device opens RFCOMM_CHANNEL_ID #
+    # DO NOT call openChannel() here — the channel is already being      #
+    # opened by the remote side.  Just register this delegate and wait   #
+    # for rfcommChannelOpenComplete_status_ to confirm it is open.       #
     # ------------------------------------------------------------------ #
     def newRFCOMMChannelOpened_channel_(self, notification, channel):
-        log.info("Incoming RFCOMM channel notification received")
+        log.info("Incoming RFCOMM channel notification (ID %s)", channel.getChannelID())
+        self._pending_channel = channel
         channel.setDelegate_(self)
-        result = channel.openChannel()
-        if result == 0:
-            log.info("RFCOMM channel opened (ID %s)", channel.getChannelID())
-            self.server._on_client_connected(channel)
-        else:
-            log.error("Failed to open incoming RFCOMM channel: %d", result)
+        # No openChannel() call — this is an *incoming* connection.
+        # rfcommChannelOpenComplete_status_ fires when it is fully established.
 
     def rfcommChannelOpenComplete_status_(self, channel, status):
         if status == 0:
-            log.info("RFCOMM channel open complete")
+            log.info("RFCOMM channel open complete (ID %s)", channel.getChannelID())
+            # Use pending_channel if channel arg is None (PyObjC bridge edge case)
+            ch = channel if channel is not None else self._pending_channel
+            self._pending_channel = None
+            if ch is not None:
+                self.server._on_client_connected(ch)
         else:
-            log.error("RFCOMM channel open failed: %d", status)
+            log.error("RFCOMM channel open failed with status %d", status)
+            self._pending_channel = None
 
     def rfcommChannelClosed_(self, channel):
         log.info("RFCOMM channel closed")
+        self._pending_channel = None
         self.server._on_client_disconnected()
 
     def rfcommChannelData_data_length_(self, channel, data, length):
@@ -158,7 +165,11 @@ class RFCOMMServer:
         while self._running:
             try:
                 self._publish_service()
-                log.info("RFCOMM service published, waiting for connections…")
+                log.info(
+                    "RFCOMM service published on channel %d, waiting for connections…\n"
+                    "  On Windows: open COM5 (outgoing BT port) to connect.",
+                    RFCOMM_CHANNEL_ID,
+                )
                 while self._running:
                     CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, False)
             except Exception:

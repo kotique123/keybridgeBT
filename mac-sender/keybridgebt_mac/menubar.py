@@ -41,7 +41,7 @@ class KeyBridgeTray(rumps.App):
         )
 
         # Hotkey info (non-clickable)
-        self._hotkey_info = rumps.MenuItem("Hotkey: ⌘⇧F12")
+        self._hotkey_info = rumps.MenuItem("Hotkey: ⌃⌥K")
         self._hotkey_info.set_callback(None)
 
         # Settings
@@ -125,7 +125,7 @@ class KeyBridgeTray(rumps.App):
         rumps.Window(
             title="keybridgeBT Settings",
             message="Hotkey and connection settings.",
-            default_text=f"Hotkey: Cmd+Shift+F12\nListen address: {self._get_listen_label().replace('Listening on ', '')}",
+            default_text=f"Hotkey: Ctrl+Option+K\nListen address: {self._get_listen_label().replace('Listening on ', '')}",
             ok="Close",
             dimensions=(320, 100),
         ).run()

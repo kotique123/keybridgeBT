@@ -89,7 +89,7 @@ class Daemon:
 
         try:
             self._keyboard.start()
-        except RuntimeError as e:
+        except (RuntimeError, OSError) as e:
             log.error("Keyboard capture failed: %s", e)
 
         try:

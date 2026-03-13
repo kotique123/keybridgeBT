@@ -45,7 +45,30 @@ py --version
 
 ## 2. Installation — Mac Sender
 
-### Option A: Direct (development / testing)
+### Option A: macOS App (recommended)
+
+Build a native `.app` bundle that triggers macOS permission prompts automatically:
+
+```bash
+bash mac-sender/build_app.sh
+```
+
+This creates `builds/dist/keybridgeBT.app`. To install:
+
+```bash
+cp -R builds/dist/keybridgeBT.app /Applications/
+open /Applications/keybridgeBT.app
+```
+
+On first launch, macOS will show native prompts for:
+- **Input Monitoring** — to capture keyboard HID reports
+- **Accessibility** — to capture trackpad events and the global hotkey
+
+Grant both. Permissions stick to the app permanently — no Terminal configuration needed.
+
+> The `.app` bundles a Python virtual environment with all dependencies, so the target Mac only needs Python 3.11+ installed system-wide.
+
+### Option B: Direct (development / testing)
 
 ```bash
 cd mac-sender
@@ -63,7 +86,9 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### Option B: System service (recommended for daily use)
+> **Permissions note:** When running via Terminal, you must manually add Terminal.app (or iTerm2) to both **Input Monitoring** and **Accessibility** in System Settings → Privacy & Security.
+
+### Option C: System service
 
 Installs to `/opt/keybridgebt/`, runs as the dedicated low-privilege user `_keybridgebt`, restarts automatically on crash.
 
@@ -80,7 +105,7 @@ The installer:
 - Creates `/var/log/keybridgebt/` for logs
 - Installs and loads `com.keybridgebt.sender.plist` into `/Library/LaunchDaemons/`
 
-### Option C: From a build archive
+### Option D: From a build archive
 
 ```bash
 tar xzf builds/dist/keybridgebt-mac-<version>.tar.gz

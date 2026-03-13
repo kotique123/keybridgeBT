@@ -4,6 +4,7 @@
 set -euo pipefail
 
 INSTALL_DIR="/opt/keybridgebt/mac-sender"
+VENV_DIR="$INSTALL_DIR/.venv"
 LOG_DIR="/var/log/keybridgebt"
 SERVICE_USER="_keybridgebt"
 PLIST_SRC="com.keybridgebt.sender.plist"
@@ -44,9 +45,14 @@ cp config.yaml "$INSTALL_DIR/" 2>/dev/null || true
 cp requirements.txt "$INSTALL_DIR/"
 chown -R $SERVICE_USER:staff "$INSTALL_DIR"
 
-# 3. Install Python dependencies
-echo "Installing Python dependencies…"
-pip3 install --quiet -r "$INSTALL_DIR/requirements.txt"
+# 3. Create venv and install Python dependencies
+# Using a venv avoids PEP 668 "externally managed" errors on macOS 12+
+# and isolates dependencies from the system Python.
+echo "Creating Python virtualenv at $VENV_DIR…"
+python3 -m venv "$VENV_DIR"
+echo "Installing Python dependencies into venv…"
+"$VENV_DIR/bin/pip" install --quiet -r "$INSTALL_DIR/requirements.txt"
+chown -R $SERVICE_USER:staff "$VENV_DIR"
 
 # 4. Create log directory
 echo "Setting up log directory…"
@@ -59,9 +65,15 @@ cp "$PLIST_SRC" "$PLIST_DST"
 chown root:wheel "$PLIST_DST"
 chmod 644 "$PLIST_DST"
 
-# Unload if already loaded
-launchctl unload "$PLIST_DST" 2>/dev/null || true
-launchctl load "$PLIST_DST"
+# Unload existing service (both modern and legacy API)
+launchctl bootout system "$PLIST_DST" 2>/dev/null || launchctl unload "$PLIST_DST" 2>/dev/null || true
+# Load service (macOS 10.10+ bootstrap, fallback to legacy load)
+if launchctl bootstrap system "$PLIST_DST" 2>/dev/null; then
+    echo "Service bootstrapped (modern API)"
+else
+    launchctl load "$PLIST_DST"
+    echo "Service loaded (legacy API)"
+fi
 
 echo ""
 echo "=== Installation complete ==="

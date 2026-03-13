@@ -54,7 +54,18 @@ class HIDKeyboardReader:
             raise RuntimeError("No Apple keyboard HID device found")
 
         self._device = hid.device()
-        self._device.open_path(dev_info["path"])
+        try:
+            self._device.open_path(dev_info["path"])
+        except OSError as exc:
+            self._device = None
+            raise RuntimeError(
+                "Cannot open Apple keyboard HID device — Input Monitoring "
+                "permission is required.\n"
+                "  1. Open System Settings → Privacy & Security → Input Monitoring\n"
+                "  2. Add your terminal app (Terminal, iTerm2) or Python binary\n"
+                "  3. Restart keybridgeBT\n"
+                f"  (underlying error: {exc})"
+            ) from exc
         self._device.set_nonblocking(False)
         log.info("Opened keyboard: %s [%s]",
                  dev_info.get("product_string", "?"),

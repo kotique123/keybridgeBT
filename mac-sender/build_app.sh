@@ -77,7 +77,7 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <string>13.0</string>
 
     <key>LSUIElement</key>
-    <false/>
+    <true/>
 
     <key>NSHighResolutionCapable</key>
     <true/>

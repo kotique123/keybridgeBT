@@ -20,9 +20,8 @@ import yaml
 from .packet import TYPE_KEYBOARD, TYPE_POINTER, build_packet, frame_packet, next_seqno
 from .crypto import StreamEncryptor
 from .tcp_server import TCPServer
-from .hid_reader import HIDKeyboardReader
+from .keyboard_tap import KeyboardTap
 from .trackpad_reader import TrackpadReader
-from .toggle import HotkeyMonitor
 
 log = logging.getLogger(__name__)
 
@@ -58,13 +57,13 @@ class Daemon:
             on_connect=self._on_client_connected,
             on_disconnect=self._on_client_disconnected,
         )
-        self._keyboard = HIDKeyboardReader(callback=self._on_keyboard_report)
-        self._trackpad = TrackpadReader(callback=self._on_pointer_event)
-        self._hotkey = HotkeyMonitor(
-            callback=self.toggle_forwarding,
-            keycode=self._config["hotkey_keycode"],
-            modifiers=self._config["hotkey_modifiers"],
+        self._keyboard = KeyboardTap(
+            report_callback=self._on_keyboard_report,
+            toggle_callback=self.toggle_forwarding,
+            hotkey_keycode=self._config["hotkey_keycode"],
+            hotkey_modifiers=self._config["hotkey_modifiers"],
         )
+        self._trackpad = TrackpadReader(callback=self._on_pointer_event)
 
     @property
     def is_forwarding(self) -> bool:
@@ -82,7 +81,11 @@ class Daemon:
         with self._lock:
             self._forwarding = not self._forwarding
             state = "FORWARDING" if self._forwarding else "PAUSED"
-        log.info("State changed: %s", state)
+        # Update seizure state on both input readers
+        self._keyboard.seize = self._forwarding
+        self._trackpad.seize = self._forwarding
+        log.info("State changed: %s (input %s)",
+                 state, "seized" if self._forwarding else "released")
 
     def start(self):
         log.info("Starting keybridgeBT mac-sender daemon")
@@ -105,7 +108,7 @@ class Daemon:
 
         try:
             self._keyboard.start()
-        except (RuntimeError, OSError) as e:
+        except Exception as e:
             log.error("Keyboard capture failed: %s", e)
 
         try:
@@ -113,12 +116,10 @@ class Daemon:
         except Exception as e:
             log.error("Trackpad capture failed: %s", e)
 
-        self._hotkey.start()
-        log.info("All components started")
+        log.info("All components started — press Cmd+Shift+F12 to toggle input seizure")
 
     def stop(self):
         log.info("Stopping keybridgeBT mac-sender daemon")
-        self._hotkey.stop()
         self._trackpad.stop()
         self._keyboard.stop()
         self._tcp.stop()
@@ -181,13 +182,36 @@ def load_config() -> dict:
     return {}
 
 
+def _setup_logging(log_level_str: str):
+    """Configure logging. Writes to a file when running inside a .app bundle."""
+    level = getattr(logging, log_level_str, logging.INFO)
+    fmt = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
+
+    # Detect .app bundle: the executable lives inside Contents/MacOS/
+    in_app = ".app/Contents/" in (os.environ.get("__CFBundleIdentifier", "")
+                                  or sys.executable or "")
+    if not in_app:
+        in_app = ".app/Contents/" in os.path.abspath(__file__)
+
+    if in_app:
+        log_dir = os.path.expanduser("~/Library/Logs/keybridgeBT")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "sender.log")
+        logging.basicConfig(
+            level=level, format=fmt,
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler(),
+            ],
+        )
+        logging.getLogger(__name__).info("Logging to %s", log_file)
+    else:
+        logging.basicConfig(level=level, format=fmt)
+
+
 def main():
     config = load_config()
-    log_level = config.get("log_level", "INFO")
-    logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
-        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    )
+    _setup_logging(config.get("log_level", "INFO"))
 
     # Check if first-run setup is needed
     from . import keychain

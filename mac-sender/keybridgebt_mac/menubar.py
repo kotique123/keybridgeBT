@@ -82,9 +82,9 @@ class KeyBridgeTray(rumps.App):
 
         # Status text
         if forwarding:
-            self._status_item.title = "Status: 🟢 Forwarding"
+            self._status_item.title = "Status: 🟢 Forwarding to Windows"
         else:
-            self._status_item.title = "Status: ⏸ Paused"
+            self._status_item.title = "Status: ⏸ Input on Mac"
 
         # Connection text
         if connected:

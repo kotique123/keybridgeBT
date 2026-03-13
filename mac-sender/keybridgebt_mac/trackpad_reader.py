@@ -47,6 +47,15 @@ class TrackpadReader:
         self._running = False
         self._tap = None
         self._buttons = 0  # bitmask: bit0=left, bit1=right, bit2=middle
+        self._seize = False
+
+    @property
+    def seize(self) -> bool:
+        return self._seize
+
+    @seize.setter
+    def seize(self, value: bool):
+        self._seize = value
 
     def start(self):
         """Create CGEventTap for pointer events, run in a background thread."""
@@ -71,7 +80,7 @@ class TrackpadReader:
         self._tap = Quartz.CGEventTapCreate(
             Quartz.kCGSessionEventTap,
             Quartz.kCGHeadInsertEventTap,
-            Quartz.kCGEventTapOptionListenOnly,  # listen only, don't consume events
+            Quartz.kCGEventTapOptionDefault,  # active: can consume events when seizing
             mask,
             self._tap_callback,
             None,
@@ -147,4 +156,7 @@ class TrackpadReader:
         except Exception:
             log.exception("Error in trackpad tap callback")
 
+        # When seizing, consume the event so the Mac doesn't see it
+        if self._seize:
+            return None
         return event

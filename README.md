@@ -33,7 +33,7 @@ keybridgeBT lets you use your Mac's keyboard and trackpad to control a nearby Wi
 │                             │                                       │                             │
 │  ┌──────────┐ ┌───────────┐ │                                       │  ┌──────────┐ ┌───────────┐ │
 │  │ Menubar  │ │  Hotkey   │ │                                       │  │Sys. Tray │ │Rate Limit │ │
-│  │  (rumps) │ │ (⌘⇧F12)  │ │                                       │  │(pystray) │ │(20 key/s) │ │
+│  │  (rumps) │ │  (⌃⌥K)   │ │                                       │  │(pystray) │ │(20 key/s) │ │
 │  └──────────┘ └───────────┘ │                                       │  └──────────┘ └───────────┘ │
 └─────────────────────────────┘                                       └─────────────────────────────┘
 ```
@@ -113,7 +113,7 @@ Both sides need to exchange public keys once:
 ## Usage
 
 ### Hotkey Toggle
-Press **⌘⇧F12** (Cmd+Shift+F12) to pause/resume forwarding. When paused, your keyboard and trackpad work on the Mac as normal.
+Press **⌃⌥K** (Ctrl+Option+K) to pause/resume forwarding. When paused, your keyboard and trackpad work on the Mac as normal.
 
 ### Menu Bar (Mac)
 Click the ⌨️ icon in the menu bar to see:
@@ -132,8 +132,8 @@ Right-click the tray icon to see connection status and quit.
 ```yaml
 listen_host: "0.0.0.0"      # bind address
 listen_port: 9741            # TCP port
-hotkey_keycode: 111          # F12 (macOS virtual keycode)
-hotkey_modifiers: 0x180000   # Cmd+Shift
+hotkey_keycode: 40           # K (macOS virtual keycode)
+hotkey_modifiers: 0x0C0000   # Ctrl+Option
 log_level: INFO
 ```
 

@@ -11,8 +11,8 @@ See docs/ARCHITECTURE.md §3.2 and docs/TASKS.md Task 15.
 import sys
 import base64
 import logging
+import subprocess
 import tempfile
-import os
 
 log = logging.getLogger(__name__)
 
@@ -48,8 +48,8 @@ def run_setup() -> bool:
         qr.save(tmp.name)
         tmp.close()
         print(f"QR code saved to: {tmp.name}")
-        # Try to open it
-        os.system(f"open {tmp.name}")
+        # Use subprocess to avoid shell injection from untrusted file paths
+        subprocess.run(["open", tmp.name], check=False)
     except ImportError:
         print("(Install 'qrcode[pil]' to display a QR code)")
 

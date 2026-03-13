@@ -14,8 +14,24 @@ import logging
 log = logging.getLogger(__name__)
 
 APPLE_VID = 0x05AC
+# On Apple Silicon (and newer Intel) Macs the internal keyboard enumerates with
+# VID=0x0000 rather than 0x05AC.  We accept both.
+APPLE_VID_INTERNAL = 0x0000
 USAGE_PAGE_KEYBOARD = 0x01
 USAGE_KEYBOARD = 0x06
+
+
+def _is_apple_device(dev: dict) -> bool:
+    """Return True if the device looks like an Apple keyboard regardless of VID."""
+    vid = dev.get("vendor_id", -1)
+    mfr = (dev.get("manufacturer_string") or "").lower()
+    prod = (dev.get("product_string") or "").lower()
+    return (
+        vid == APPLE_VID
+        or vid == APPLE_VID_INTERNAL
+        or "apple" in mfr
+        or "apple" in prod
+    )
 
 
 class HIDKeyboardReader:
@@ -59,17 +75,43 @@ class HIDKeyboardReader:
             self._thread = None
 
     def _find_apple_keyboard(self):
-        """Find the first Apple keyboard HID device."""
-        for dev in hid.enumerate():
-            if (dev.get("vendor_id") == APPLE_VID
-                    and dev.get("usage_page") == USAGE_PAGE_KEYBOARD
-                    and dev.get("usage") == USAGE_KEYBOARD):
+        """Find the built-in (or external) Apple keyboard HID device.
+
+        Apple Silicon and newer Intel Macs enumerate the internal keyboard with
+        VID=0x0000 rather than the traditional 0x05AC.  We therefore match on
+        usage page + usage first and confirm the device is Apple-branded.
+        """
+        devices = hid.enumerate()
+
+        # Pass 1 — exact keyboard boot-protocol interface (usage_page=0x01, usage=0x06)
+        for dev in devices:
+            if (dev.get("usage_page") == USAGE_PAGE_KEYBOARD
+                    and dev.get("usage") == USAGE_KEYBOARD
+                    and _is_apple_device(dev)):
+                log.debug("Found keyboard (pass 1): VID=%#06x product=%r path=%r",
+                          dev.get("vendor_id"), dev.get("product_string"), dev.get("path"))
                 return dev
-        # Fallback: any Apple device on the keyboard usage page
-        for dev in hid.enumerate():
-            if (dev.get("vendor_id") == APPLE_VID
-                    and dev.get("usage_page") == USAGE_PAGE_KEYBOARD):
+
+        # Pass 2 — any Apple device on the generic keyboard usage page
+        for dev in devices:
+            if (dev.get("usage_page") == USAGE_PAGE_KEYBOARD
+                    and _is_apple_device(dev)):
+                log.debug("Found keyboard (pass 2): VID=%#06x product=%r path=%r",
+                          dev.get("vendor_id"), dev.get("product_string"), dev.get("path"))
                 return dev
+
+        # Pass 3 — any device whose product string mentions "keyboard"
+        for dev in devices:
+            prod = (dev.get("product_string") or "").lower()
+            if "keyboard" in prod and _is_apple_device(dev):
+                log.debug("Found keyboard (pass 3): VID=%#06x product=%r path=%r",
+                          dev.get("vendor_id"), dev.get("product_string"), dev.get("path"))
+                return dev
+
+        log.error(
+            "No Apple keyboard HID device found. Ensure Input Monitoring permission "
+            "is granted in System Settings → Privacy & Security → Input Monitoring."
+        )
         return None
 
     def _read_loop(self):

@@ -1,6 +1,8 @@
-# keybridgeBT — Build Guide
+# keybridgeBT v2 — Build Guide
 
 This directory contains scripts that produce **self-contained distributable packages** for each platform. The packages include a Python virtual environment with all dependencies pre-installed, so the target machine only needs Python 3.11+ — no internet access required at runtime.
+
+> v2 uses Wi-Fi TCP transport. No Bluetooth pairing or COM port setup required.
 
 ---
 
@@ -57,7 +59,10 @@ What it does:
 Deploy to the target Mac:
 ```bash
 tar xzf builds/dist/keybridgebt-mac-<version>.tar.gz -C /opt/keybridgebt/
-# Then run the installer from the mac-sender directory as documented in docs/RUNNING.md
+cd /opt/keybridgebt/keybridgebt-mac-<version>
+./run.sh            # run directly
+# OR
+sudo ./install.sh   # install as a launchd service (recommended for daily use)
 ```
 
 ---
@@ -81,8 +86,13 @@ What it does:
 Deploy to the target Windows machine:
 ```powershell
 Expand-Archive builds\dist\keybridgebt-win-<version>.zip -DestinationPath C:\keybridgebt\
+# Run with the Mac's IP address:
+C:\keybridgebt\keybridgebt-win-<version>\run.bat --host 192.168.1.5
+# Or set host in config.yaml inside the package, then just:
 C:\keybridgebt\keybridgebt-win-<version>\run.bat
 ```
+
+> **Finding the Mac's IP:** After starting the mac-sender, its IP is shown in the menu-bar icon ("Listening on …") and in the startup log output.
 
 ---
 
@@ -119,7 +129,7 @@ The `builds/dist/` directory is listed in `.gitignore`. Do not commit build arti
 ## Security Notes
 
 - Build artifacts contain a complete Python environment; inspect with `pip list --path dist/.venv/lib/...` before deploying to production.
-- Never bundle the shared Bluetooth key or `config.yaml` with credentials into a released artifact — keys are stored in the OS keychain on first run.
+- Never bundle the shared key or `config.yaml` with credentials into a released artifact — keys are stored in the OS keychain on first run.
 - Verify archive checksums (SHA-256) after transfer:
   ```bash
   shasum -a 256 builds/dist/keybridgebt-mac-*.tar.gz

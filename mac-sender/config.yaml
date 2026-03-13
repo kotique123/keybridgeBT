@@ -1,0 +1,5 @@
+# keybridgeBT mac-sender configuration
+service_name: keybridgeBT
+hotkey_keycode: 111          # macOS virtual keycode for F12
+hotkey_modifiers: 0x180000   # Cmd+Shift
+log_level: INFO

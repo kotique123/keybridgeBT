@@ -1,0 +1,4 @@
+# keybridgeBT win-receiver configuration
+com_port: null               # null = auto-detect Bluetooth serial port
+max_key_events_per_second: 20
+log_level: INFO

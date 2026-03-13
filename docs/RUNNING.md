@@ -120,8 +120,8 @@ sudo ./install.sh                 # install as a service
 ## 3. Installation — Windows Receiver
 
 ### Option A: Direct
-
-```powershell
+dfd
+```powershelldfdf
 cd win-receiver
 pip install -e .
 ```
@@ -305,12 +305,12 @@ Click the **⌨️** icon in the menu bar:
 | 🟢 Forwarding / ⏸ Paused | Current forwarding state |
 | 🔗 Connected / ⏳ Waiting | Bluetooth connection state |
 | Toggle Forwarding | Pause or resume |
-| Hotkey: ⌘⇧F12 | Reminder |
+| Hotkey: ⌃⌥K | Reminder |
 | Quit | Stop the daemon |
 
 ### Global hotkey
 
-**⌘ + ⇧ + F12** (Cmd + Shift + F12) — toggles forwarding on/off from any application.
+**⌃ + ⌥ + K** (Ctrl + Option + K) — toggles forwarding on/off from any application.
 
 When paused, your Mac keyboard and trackpad work normally on the Mac. Press again to resume forwarding.
 
@@ -328,8 +328,8 @@ Right-click the tray icon to see the connection status and quit.
 
 ```yaml
 service_name: keybridgeBT          # RFCOMM service name advertised via SDP
-hotkey_keycode: 111                 # macOS virtual keycode — 111 = F12
-hotkey_modifiers: 0x180000          # Cmd (0x100000) + Shift (0x80000)
+hotkey_keycode: 40                  # macOS virtual keycode — 40 = K
+hotkey_modifiers: 0x0C0000          # Ctrl (0x040000) + Option (0x080000)
 log_level: INFO                     # DEBUG | INFO | WARNING | ERROR
 ```
 

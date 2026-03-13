@@ -138,27 +138,55 @@ class RFCOMMClient:
         BT_DESC_KEYWORDS    = ("bluetooth", "standard serial over bluetooth link")
         BT_MFR_KEYWORDS     = ("bluetooth",)
 
-        candidates = []
+        # Serial Port Profile (SPP) UUID — present in outgoing port HWIDs
+        SPP_UUID = "00001101-0000-1000-8000-00805f9b34fb"
+
+        outgoing = []   # outgoing ports — Windows connects TO the Mac (correct)
+        incoming = []   # incoming ports — remote device connects TO Windows (wrong direction)
+        other    = []   # BT ports without a clear direction
+
         for p in all_ports:
             desc = (p.description  or "").lower()
             hwid = (p.hwid         or "").lower()
             mfr  = (p.manufacturer or "").lower()
 
-            if any(kw in hwid for kw in BT_HWID_KEYWORDS):
-                candidates.insert(0, (p.device, p.description, "hwid"))
-            elif any(kw in desc for kw in BT_DESC_KEYWORDS):
-                candidates.append((p.device, p.description, "desc"))
-            elif any(kw in mfr for kw in BT_MFR_KEYWORDS):
-                candidates.append((p.device, p.description, "mfr"))
+            is_bt = (
+                any(kw in hwid for kw in BT_HWID_KEYWORDS)
+                or any(kw in desc for kw in BT_DESC_KEYWORDS)
+                or any(kw in mfr  for kw in BT_MFR_KEYWORDS)
+            )
+            if not is_bt:
+                continue
 
-        if candidates:
-            device, description, match_reason = candidates[0]
-            log.info("Auto-detected BT port: %s (%s) [matched on %s]",
-                     device, description, match_reason)
-            if len(candidates) > 1:
-                log.debug("Other BT port candidates (set com_port in config.yaml to override):")
-                for d, desc, reason in candidates[1:]:
-                    log.debug("  %s (%s) [%s]", d, desc, reason)
+            # Classify direction
+            # Outgoing: HWID has SPP UUID, or description says "outgoing"
+            if SPP_UUID in hwid or "outgoing" in desc:
+                outgoing.append((p.device, p.description, "outgoing"))
+            # Incoming: description says "incoming"
+            elif "incoming" in desc:
+                incoming.append((p.device, p.description, "incoming"))
+            else:
+                other.append((p.device, p.description, "unknown-direction"))
+
+        # Priority: outgoing > unknown-direction > incoming
+        ranked = outgoing + other + incoming
+
+        if ranked:
+            device, description, direction = ranked[0]
+            log.info("Auto-detected BT port: %s (%s) [%s]", device, description, direction)
+            if len(ranked) > 1:
+                log.debug(
+                    "Other BT port candidates (set com_port in config.yaml to pin one):"
+                )
+                for d, desc, dr in ranked[1:]:
+                    log.debug("  %s (%s) [%s]", d, desc, dr)
+            if direction == "incoming":
+                log.warning(
+                    "Selected port %s appears to be an INCOMING port. "
+                    "The receiver needs an OUTGOING port to connect to the Mac. "
+                    "In Bluetooth Settings → COM Ports, add an Outgoing port, "
+                    "or set com_port explicitly in config.yaml.", device
+                )
             return device
 
         log.warning(

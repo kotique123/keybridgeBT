@@ -97,13 +97,13 @@ class KeyboardTap:
     toggle_callback : callable()
         Called when the hotkey combo is detected.
     hotkey_keycode : int
-        macOS virtual keycode for the hotkey (default: F12 = 111 = 0x6F).
+        macOS virtual keycode for the hotkey (default: K = 40 = 0x28).
     hotkey_modifiers : int
         CGEventFlags bitmask for the hotkey modifiers.
     """
 
     def __init__(self, report_callback, toggle_callback,
-                 hotkey_keycode=111, hotkey_modifiers=0x180000):
+                 hotkey_keycode=40, hotkey_modifiers=0x0C0000):
         self._report_cb = report_callback
         self._toggle_cb = toggle_callback
         self._hotkey_kc = hotkey_keycode
@@ -206,7 +206,7 @@ class KeyboardTap:
         if event_type == Quartz.kCGEventKeyDown:
             if (keycode == self._hotkey_kc
                     and (flags & self._hotkey_mod) == self._hotkey_mod):
-                log.info("Hotkey triggered (Cmd+Shift+F12)")
+                log.info("Hotkey triggered (Ctrl+Option+K)")
                 self._toggle_cb()
                 return None  # consume hotkey
 

@@ -99,6 +99,14 @@ class TrackpadReader:
 
     def _tap_callback(self, proxy, event_type, event, refcon):
         """CGEventTap callback — extract pointer data and fire callback."""
+        # Re-enable tap if the system disabled it (e.g. after timeout or
+        # permission change). This mirrors the same handling in toggle.py.
+        if event_type == Quartz.kCGEventTapDisabledByTimeout:
+            log.warning("Trackpad event tap disabled by timeout, re-enabling")
+            if self._tap:
+                Quartz.CGEventTapEnable(self._tap, True)
+            return event
+
         try:
             dx = 0
             dy = 0

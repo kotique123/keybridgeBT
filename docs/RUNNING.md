@@ -47,9 +47,18 @@ py --version
 
 ```bash
 cd mac-sender
+pip install -e .
+```
+
+This installs `keybridgebt_mac` into your active Python environment so `python3 -m keybridgebt_mac` works from any directory.
+
+If you prefer an isolated virtual environment:
+
+```bash
+cd mac-sender
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### Option B: System service (recommended for daily use)
@@ -87,9 +96,18 @@ sudo ./install.sh                 # install as a service
 
 ```powershell
 cd win-receiver
+pip install -e .
+```
+
+This installs `keybridgebt_win` into your active Python environment so `py -m keybridgebt_win` works from any directory.
+
+If you prefer an isolated virtual environment:
+
+```powershell
+cd win-receiver
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### Option B: From a build archive

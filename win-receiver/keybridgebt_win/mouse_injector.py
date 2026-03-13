@@ -33,7 +33,7 @@ class MOUSEINPUT(ctypes.Structure):
         ("mouseData", wintypes.DWORD),
         ("dwFlags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+        ("dwExtraInfo", ctypes.c_size_t),  # ULONG_PTR — pointer-sized on 32/64-bit
     ]
 
 
@@ -72,7 +72,7 @@ class MouseInjector:
             inp.mi.mouseData = 0
             inp.mi.dwFlags = MOUSEEVENTF_MOVE
             inp.mi.time = 0
-            inp.mi.dwExtraInfo = None
+            inp.mi.dwExtraInfo = 0
             inputs.append(inp)
 
         # Button state changes
@@ -88,13 +88,13 @@ class MouseInjector:
                 inp = INPUT()
                 inp.type = INPUT_MOUSE
                 inp.mi.dwFlags = down_flag
-                inp.mi.dwExtraInfo = None
+                inp.mi.dwExtraInfo = 0
                 inputs.append(inp)
             elif not now and was:
                 inp = INPUT()
                 inp.type = INPUT_MOUSE
                 inp.mi.dwFlags = up_flag
-                inp.mi.dwExtraInfo = None
+                inp.mi.dwExtraInfo = 0
                 inputs.append(inp)
 
         self._prev_buttons = buttons
@@ -107,7 +107,7 @@ class MouseInjector:
             inp.mi.mouseData = ctypes.c_ulong(
                 scroll_v * WHEEL_DELTA & 0xFFFFFFFF
             ).value
-            inp.mi.dwExtraInfo = None
+            inp.mi.dwExtraInfo = 0
             inputs.append(inp)
 
         # Horizontal scroll
@@ -118,7 +118,7 @@ class MouseInjector:
             inp.mi.mouseData = ctypes.c_ulong(
                 scroll_h * WHEEL_DELTA & 0xFFFFFFFF
             ).value
-            inp.mi.dwExtraInfo = None
+            inp.mi.dwExtraInfo = 0
             inputs.append(inp)
 
         if inputs:
@@ -134,19 +134,19 @@ class MouseInjector:
             inp = INPUT()
             inp.type = INPUT_MOUSE
             inp.mi.dwFlags = MOUSEEVENTF_LEFTUP
-            inp.mi.dwExtraInfo = None
+            inp.mi.dwExtraInfo = 0
             inputs.append(inp)
         if self._prev_buttons & 0x02:
             inp = INPUT()
             inp.type = INPUT_MOUSE
             inp.mi.dwFlags = MOUSEEVENTF_RIGHTUP
-            inp.mi.dwExtraInfo = None
+            inp.mi.dwExtraInfo = 0
             inputs.append(inp)
         if self._prev_buttons & 0x04:
             inp = INPUT()
             inp.type = INPUT_MOUSE
             inp.mi.dwFlags = MOUSEEVENTF_MIDDLEUP
-            inp.mi.dwExtraInfo = None
+            inp.mi.dwExtraInfo = 0
             inputs.append(inp)
         if inputs:
             arr = (INPUT * len(inputs))(*inputs)

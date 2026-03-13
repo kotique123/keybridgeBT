@@ -28,7 +28,7 @@ class KEYBDINPUT(ctypes.Structure):
         ("wScan", wintypes.WORD),
         ("dwFlags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+        ("dwExtraInfo", ctypes.c_size_t),  # ULONG_PTR — pointer-sized on 32/64-bit
     ]
 
 
@@ -135,5 +135,5 @@ class KeyInjector:
         inp.ki.wScan = 0
         inp.ki.dwFlags = flags
         inp.ki.time = 0
-        inp.ki.dwExtraInfo = None
+        inp.ki.dwExtraInfo = 0
         return inp

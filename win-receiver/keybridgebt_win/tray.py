@@ -1,10 +1,10 @@
 """
 Windows system tray icon for keybridgeBT.
 
-Shows connection state and provides quit action.
+Shows connection state (server IP:port) and provides quit action.
 Uses pystray + Pillow.
 
-See docs/ARCHITECTURE.md §5.11 and docs/TASKS.md Task 19.
+See docs/ARCHITECTURE-v2.md §6.11 for spec.
 """
 
 import logging
@@ -39,10 +39,10 @@ def run_tray(daemon):
         icon.stop()
 
     def get_status(item):
-        return "🔗 Connected" if daemon.is_connected else "⏳ Waiting…"
+        return "🔗 Connected" if daemon.is_connected else "⏳ Connecting…"
 
-    def get_port(item):
-        return f"Port: {daemon.port_name}"
+    def get_server(item):
+        return f"Server: {daemon.server_address}"
 
     icon = pystray.Icon(
         "keybridgeBT",
@@ -50,7 +50,7 @@ def run_tray(daemon):
         "keybridgeBT Receiver",
         menu=pystray.Menu(
             pystray.MenuItem(get_status, None, enabled=False),
-            pystray.MenuItem(get_port, None, enabled=False),
+            pystray.MenuItem(get_server, None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", on_quit),
         ),

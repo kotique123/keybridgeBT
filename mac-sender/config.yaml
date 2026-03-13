@@ -1,5 +1,6 @@
 # keybridgeBT mac-sender configuration
-service_name: keybridgeBT
+listen_host: "0.0.0.0"      # bind address ("0.0.0.0" = all interfaces)
+listen_port: 9741            # TCP port to listen on
 hotkey_keycode: 111          # macOS virtual keycode for F12
 hotkey_modifiers: 0x180000   # Cmd+Shift
 log_level: INFO

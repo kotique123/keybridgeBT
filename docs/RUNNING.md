@@ -1,6 +1,7 @@
-# keybridgeBT — Running Guide
+# keybridgeBT v2 — Running Guide
 
 This guide covers every step from a fresh machine to a working forwarding session.
+v2 uses **Wi-Fi TCP** instead of Bluetooth, giving you a rock-solid LAN connection.
 
 ---
 
@@ -26,7 +27,8 @@ This guide covers every step from a fresh machine to a working forwarding sessio
 |---|---|---|
 | OS | macOS 13.0+ (Ventura) | Windows 10 / 11 |
 | Python | 3.11 or later | 3.11 or later |
-| Bluetooth | Enabled | Enabled, paired with Mac |
+| Network | Wi-Fi or Ethernet (same LAN) | Wi-Fi or Ethernet (same LAN) |
+| Bluetooth | Not required | Not required |
 | Permissions | Accessibility + Input Monitoring | None (no admin required) |
 
 **Check your Python version:**
@@ -193,17 +195,30 @@ python3 -m keybridgebt_mac
 ./run.sh
 ```
 
-The daemon starts, publishes the RFCOMM service, and waits for the Windows receiver to connect.
+The daemon starts, binds to `0.0.0.0:9741`, and waits for the Windows receiver to connect.
+The log shows your local IP address:
+```
+INFO: Listening on 0.0.0.0:9741 (local IP: 192.168.1.5)
+```
+Note this IP — you need it to configure the Windows receiver.
 
 ### Windows — foreground
 
 ```powershell
+# With IP from the Mac log output:
+py -m keybridgebt_win --host 192.168.1.5
+
+# Or set host in config.yaml first, then just:
 py -m keybridgebt_win
-# or
+
+# Run from a build package:
 .\run.bat
 ```
 
-The receiver scans for a Bluetooth COM port, connects, and starts injecting input.
+If `host` is null in `config.yaml` and no `--host` flag is provided, the receiver will prompt:
+```
+Enter Mac IP address (e.g. 192.168.1.10): _
+```
 
 ### Normal startup sequence
 
@@ -212,10 +227,10 @@ Mac sender                         Windows receiver
 ──────────────────────────────     ──────────────────────────────
 Load config                        Load config
 Check keychain → keys found        Check credentials → keys found
-Start RFCOMM server                Start BT client (auto-detect COM port)
-Start HID reader                   Connect to Mac
-Start trackpad reader              Read stream header → init decryptor
-Start hotkey monitor               Start system tray
+Bind TCP 0.0.0.0:9741              Start TCP client (connect to Mac IP)
+Start HID reader                   (reconnecting…)
+Start trackpad reader
+Start hotkey monitor
 Load menubar tray       ←──────→   (connected)
 Status: ⏳ Waiting
                         ←──connect
@@ -355,7 +370,7 @@ python3 -m pytest tests/test_session_security.py -v
 python3 -m pytest tests/ -v --tb=long
 ```
 
-Expected result: **54 tests, all passing.**
+Expected result: **62 tests, all passing.**
 
 ### Test file overview
 
@@ -364,6 +379,7 @@ Expected result: **54 tests, all passing.**
 | `tests/test_protocol_crypto.py` | Protocol round-trip, crypto mechanics, seqno validation, rate limiter, keycode whitelist |
 | `tests/test_pipeline_reconnect.py` | Full Mac/Win pipelines, reconnection state reset, hotkey toggle, keychain round-trip |
 | `tests/test_session_security.py` | Session isolation, authentication, nonce uniqueness, MITM detection, wrong-key rejection, stream ordering, replay prevention, header uniqueness |
+| `tests/test_tcp_transport.py` | TCPServer/TCPClient connect/disconnect, data delivery, auto-reconnect, full encrypted pipeline, concurrent sends, clean shutdown |
 
 ---
 
@@ -385,18 +401,25 @@ The trackpad capture requires Accessibility permission.
 - Add your terminal app or the service process
 - Re-run; the tap should register automatically
 
-### Windows receiver cannot find a Bluetooth COM port
+### Windows cannot connect to the Mac
 
-1. On Windows, open **Bluetooth & devices → More Bluetooth settings → COM Ports**
-2. Confirm an outgoing COM port is listed for the Mac
-3. Set `com_port: "COMx"` in `win-receiver/config.yaml` with the correct port number
+1. Confirm both machines are on the **same network** (same Wi-Fi router or Ethernet switch)
+2. Find the Mac's IP: check the menu-bar icon ("Listening on …") or run `ipconfig getifaddr en0` in Terminal
+3. Test connectivity: `ping <mac-ip>` from a Windows Command Prompt
+4. If ping fails, check the Mac **firewall**: System Settings → Network → Firewall → allow incoming connections on port 9741
+5. Set `host: "<mac-ip>"` in `win-receiver/config.yaml` (or pass `--host <mac-ip>` on the command line)
 
-### "Link encryption not active" — connection refused
+### Firewall blocking port 9741
 
-The Mac enforces BT link-level encryption before accepting data.
+**macOS:** System Settings → Network → Firewall → Firewall Options → add the Python executable or set it to allow all incoming connections.
 
-- Un-pair and re-pair the devices in System Settings / Bluetooth settings on both machines
-- Ensure the Mac's Bluetooth is not set to a "Low Energy only" mode
+**Windows:** If Windows Defender Firewall blocks the connection, add an outbound rule for port 9741 in Windows Defender Firewall.
+
+### Connection drops / keeps reconnecting
+
+- Check Wi-Fi signal strength; consider using Ethernet for lower latency
+- If your router has "AP isolation" or "client isolation" enabled, hosts on the same network can't talk to each other — disable it
+- Check `log_level: DEBUG` in both config files for per-packet timing
 
 ### Keys were lost / need to redo setup
 
@@ -429,7 +452,7 @@ Then restart both daemons — the setup wizard will run automatically.
 ### Forwarding is active but keystrokes arrive on Windows with delay
 
 - Increase `max_key_events_per_second` in `win-receiver/config.yaml` if typing is being rate-limited
-- Check Bluetooth signal strength — physical distance and interference affect RFCOMM latency
+- A high-latency Wi-Fi link can add delay — check signal quality or use Ethernet
 - Check `log_level: DEBUG` in both config files to see per-packet timing
 
 ### Service crashed / greyed out in menu bar

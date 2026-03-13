@@ -1,10 +1,10 @@
 """
 Main daemon orchestrator for win-receiver.
 
-Wires together: RFCOMM client, crypto, packet parser, key injector,
+Wires together: TCP client, crypto, packet parser, key injector,
 mouse injector, rate limiter, and tray icon.
 
-See docs/ARCHITECTURE.md §5.10 and docs/TASKS.md Task 21.
+See docs/ARCHITECTURE-v2.md §3.2 and §6.10 for spec.
 """
 
 import logging
@@ -19,7 +19,7 @@ import yaml
 
 from .packet import PacketReader, TYPE_KEYBOARD, TYPE_POINTER
 from .crypto import StreamDecryptor, STREAM_HEADER_LEN
-from .bt_client import RFCOMMClient
+from .tcp_client import TCPClient
 from .key_injector import KeyInjector
 from .mouse_injector import MouseInjector
 from .rate_limiter import RateLimiter
@@ -27,7 +27,8 @@ from .rate_limiter import RateLimiter
 log = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
-    "com_port": None,               # None = auto-detect
+    "host": None,                   # Mac's IP address — None = prompt on startup
+    "port": 9741,
     "max_key_events_per_second": 20,
     "log_level": "INFO",
 }
@@ -55,8 +56,9 @@ class Daemon:
             max_events=self._config["max_key_events_per_second"]
         )
 
-        self._client = RFCOMMClient(
-            port=self._config["com_port"],
+        self._client = TCPClient(
+            host=self._config["host"] or "",
+            port=self._config["port"],
             callback=self._on_raw_data,
         )
         self._client.set_callbacks(
@@ -69,8 +71,8 @@ class Daemon:
         return self._client.is_connected
 
     @property
-    def port_name(self) -> str:
-        return self._client.port_name
+    def server_address(self) -> str:
+        return self._client.server_address
 
     def start(self):
         log.info("Starting keybridgeBT win-receiver daemon")
@@ -80,7 +82,7 @@ class Daemon:
             sys.exit(1)
 
         self._client.start()
-        log.info("Receiver started, waiting for connection…")
+        log.info("Receiver started, connecting to %s…", self._client.server_address)
 
     def stop(self):
         log.info("Stopping keybridgeBT win-receiver daemon")
@@ -90,7 +92,7 @@ class Daemon:
         log.info("Receiver stopped")
 
     def _on_connected(self):
-        """New BT connection — prepare to receive stream header."""
+        """New TCP connection — prepare to receive stream header."""
         with self._lock:
             self._awaiting_header = True
             self._header_buf = bytearray()
@@ -100,7 +102,7 @@ class Daemon:
         log.info("Connected, awaiting crypto stream header…")
 
     def _on_disconnected(self):
-        """BT disconnect — release all keys, reset state."""
+        """TCP disconnect — release all keys, reset state."""
         self._key_injector.release_all()
         self._mouse_injector.release_all()
         with self._lock:
@@ -112,7 +114,7 @@ class Daemon:
         log.info("Disconnected, all keys/buttons released")
 
     def _on_raw_data(self, data: bytes):
-        """Handle raw bytes from the serial stream."""
+        """Handle raw bytes from the TCP stream."""
         with self._lock:
             if self._awaiting_header:
                 self._header_buf.extend(data)
@@ -169,13 +171,21 @@ def load_config() -> dict:
     return {}
 
 
-def main():
+def main(host_override: str = None):
     config = load_config()
     log_level = config.get("log_level", "INFO")
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
+
+    # --host CLI override takes precedence over config.yaml
+    if host_override:
+        config["host"] = host_override
+
+    # If host is still not set, prompt the user
+    if not config.get("host"):
+        config["host"] = input("Enter Mac IP address (e.g. 192.168.1.10): ").strip()
 
     # Check if first-run setup is needed
     from . import credential_store

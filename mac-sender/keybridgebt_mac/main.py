@@ -1,10 +1,10 @@
 """
 Main daemon orchestrator for mac-sender.
 
-Wires together: HID reader, trackpad reader, RFCOMM server, crypto,
+Wires together: HID reader, trackpad reader, TCP server, crypto,
 packet builder, hotkey toggle, and tray icon.
 
-See docs/ARCHITECTURE.md §4.10 and docs/TASKS.md Task 20.
+See docs/ARCHITECTURE-v2.md §3.1 and §5.10 for spec.
 """
 
 import logging
@@ -19,7 +19,7 @@ import yaml
 
 from .packet import TYPE_KEYBOARD, TYPE_POINTER, build_packet, frame_packet, next_seqno
 from .crypto import StreamEncryptor
-from .bt_server import RFCOMMServer
+from .tcp_server import TCPServer
 from .hid_reader import HIDKeyboardReader
 from .trackpad_reader import TrackpadReader
 from .toggle import HotkeyMonitor
@@ -27,7 +27,8 @@ from .toggle import HotkeyMonitor
 log = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
-    "service_name": "keybridgeBT",
+    "listen_host": "0.0.0.0",
+    "listen_port": 9741,
     "hotkey_keycode": 111,          # F12
     "hotkey_modifiers": 0x180000,   # Cmd+Shift
     "log_level": "INFO",
@@ -44,15 +45,16 @@ class Daemon:
         self._seqno = 0
         self._encryptor = None
 
-        self.service_name = self._config["service_name"]
-
         # Load shared key
         from . import keychain
         self._shared_key = keychain.load_shared_key()
 
         # Components
-        self._rfcomm = RFCOMMServer(service_name=self._config["service_name"])
-        self._rfcomm.set_callbacks(
+        self._tcp = TCPServer(
+            host=self._config["listen_host"],
+            port=self._config["listen_port"],
+        )
+        self._tcp.set_callbacks(
             on_connect=self._on_client_connected,
             on_disconnect=self._on_client_disconnected,
         )
@@ -70,7 +72,11 @@ class Daemon:
 
     @property
     def is_connected(self) -> bool:
-        return self._rfcomm.is_connected
+        return self._tcp.is_connected
+
+    @property
+    def listen_address(self) -> str:
+        return self._tcp.listen_address
 
     def toggle_forwarding(self):
         with self._lock:
@@ -85,7 +91,17 @@ class Daemon:
             log.error("No shared key found — run setup first")
             sys.exit(1)
 
-        self._rfcomm.start()
+        self._tcp.start()
+        # Log the listen address so the user can configure the Windows side
+        import socket as _socket
+        try:
+            local_ip = _socket.gethostbyname(_socket.gethostname())
+        except OSError:
+            local_ip = self._config["listen_host"]
+        log.info("Listening on %s:%d (local IP: %s)",
+                 self._config["listen_host"],
+                 self._config["listen_port"],
+                 local_ip)
 
         try:
             self._keyboard.start()
@@ -105,21 +121,21 @@ class Daemon:
         self._hotkey.stop()
         self._trackpad.stop()
         self._keyboard.stop()
-        self._rfcomm.stop()
+        self._tcp.stop()
         log.info("Daemon stopped")
 
     def _on_client_connected(self):
-        """New BT connection — create fresh encryptor, send header, reset seqno."""
+        """New TCP connection — create fresh encryptor, send header, reset seqno."""
         with self._lock:
             self._seqno = 0
             self._encryptor = StreamEncryptor(self._shared_key)
             header = self._encryptor.header
         # Send the stream header as a raw (unframed) bootstrap
-        self._rfcomm.send(header)
+        self._tcp.send(header)
         log.info("Crypto session started, header sent (%d bytes)", len(header))
 
     def _on_client_disconnected(self):
-        """BT disconnect — reset crypto state."""
+        """TCP disconnect — reset crypto state."""
         with self._lock:
             self._encryptor = None
             self._seqno = 0
@@ -137,15 +153,15 @@ class Daemon:
 
         packet = build_packet(ptype, seqno, ciphertext)
         framed = frame_packet(packet)
-        self._rfcomm.send(framed)
+        self._tcp.send(framed)
 
     def _on_keyboard_report(self, report: bytes):
-        if not self._forwarding or not self._rfcomm.is_connected:
+        if not self._forwarding or not self._tcp.is_connected:
             return
         self._send_packet(TYPE_KEYBOARD, report)
 
     def _on_pointer_event(self, buttons, dx, dy, scroll_v, scroll_h):
-        if not self._forwarding or not self._rfcomm.is_connected:
+        if not self._forwarding or not self._tcp.is_connected:
             return
         plaintext = struct.pack("<BhhBB",
                                 buttons & 0xFF,

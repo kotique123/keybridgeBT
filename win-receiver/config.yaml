@@ -1,18 +1,15 @@
 # keybridgeBT win-receiver configuration
 
-# Bluetooth COM port to connect to the Mac sender.
-# null = auto-detect (prefers outgoing ports over incoming ones).
+# Mac's IP address — null = prompt on startup.
+# Set this to avoid the interactive prompt:
+#   host: "192.168.1.10"
 #
-# You need an OUTGOING Bluetooth COM port:
-#   Control Panel → Hardware and Sound → Bluetooth Settings
-#   → COM Ports tab → Add → Outgoing → select your Mac → OK
-#
-# To find your port number run:
-#   py -m keybridgebt_win --list-ports
-#
-# Then set it here if auto-detect picks the wrong one:
-#   com_port: "COM5"
-com_port: null
+# Or pass it on the command line:
+#   py -m keybridgebt_win --host 192.168.1.10
+host: null
+
+# TCP port must match mac-sender's listen_port
+port: 9741
 
 max_key_events_per_second: 20
 log_level: INFO

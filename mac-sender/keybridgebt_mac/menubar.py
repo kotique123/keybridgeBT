@@ -1,12 +1,13 @@
 """
 macOS menu-bar tray icon for keybridgeBT.
 
-Shows forwarding state, connection info, and provides controls.
+Shows forwarding state, connection info (IP:port), and provides controls.
 Uses rumps for a native-feeling status bar experience.
 
-See docs/ARCHITECTURE.md §4.8 for spec.
+See docs/ARCHITECTURE-v2.md §5.8 for spec.
 """
 
+import socket
 import rumps
 import logging
 
@@ -30,7 +31,10 @@ class KeyBridgeTray(rumps.App):
 
         self._connection_item = rumps.MenuItem("Connection: Waiting…")
         self._connection_item.set_callback(None)
+        self._listen_item = rumps.MenuItem(self._get_listen_label())
+        self._listen_item.set_callback(None)
 
+        self._copy_ip_item = rumps.MenuItem("Copy IP:port", callback=self._on_copy_ip)
         # Toggle button
         self._toggle_item = rumps.MenuItem(
             "⏸ Pause Forwarding", callback=self._on_toggle
@@ -49,6 +53,8 @@ class KeyBridgeTray(rumps.App):
         self.menu = [
             self._status_item,
             self._connection_item,
+            self._listen_item,
+            self._copy_ip_item,
             None,                   # separator
             self._toggle_item,
             self._hotkey_info,
@@ -86,6 +92,9 @@ class KeyBridgeTray(rumps.App):
         else:
             self._connection_item.title = "Connection: ⏳ Waiting…"
 
+        # Keep listen address fresh (IP may change)
+        self._listen_item.title = self._get_listen_label()
+
         # Toggle button text
         if forwarding:
             self._toggle_item.title = "⏸ Pause Forwarding"
@@ -96,11 +105,27 @@ class KeyBridgeTray(rumps.App):
         self._daemon.toggle_forwarding()
         log.info("Forwarding toggled via tray")
 
+    def _get_listen_label(self) -> str:
+        """Return e.g. 'Listening on 192.168.1.5:9741'."""
+        try:
+            local_ip = socket.gethostbyname(socket.gethostname())
+        except OSError:
+            local_ip = "0.0.0.0"
+        port = getattr(self._daemon, "_config", {}).get("listen_port", 9741)
+        return f"Listening on {local_ip}:{port}"
+
+    def _on_copy_ip(self, _):
+        """Copy the IP:port string to the clipboard."""
+        import subprocess
+        label = self._get_listen_label().replace("Listening on ", "")
+        subprocess.run(["pbcopy"], input=label.encode(), check=False)
+        log.info("Copied IP:port to clipboard: %s", label)
+
     def _on_settings(self, _):
         rumps.Window(
             title="keybridgeBT Settings",
             message="Hotkey and connection settings.",
-            default_text=f"Hotkey: Cmd+Shift+F12\nService: {self._daemon.service_name}",
+            default_text=f"Hotkey: Cmd+Shift+F12\nListen address: {self._get_listen_label().replace('Listening on ', '')}",
             ok="Close",
             dimensions=(320, 100),
         ).run()

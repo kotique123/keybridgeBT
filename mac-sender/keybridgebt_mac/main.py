@@ -28,8 +28,8 @@ log = logging.getLogger(__name__)
 DEFAULT_CONFIG = {
     "listen_host": "0.0.0.0",
     "listen_port": 9741,
-    "hotkey_keycode": 111,          # F12
-    "hotkey_modifiers": 0x180000,   # Cmd+Shift
+    "hotkey_keycode": 40,           # K
+    "hotkey_modifiers": 0x0C0000,   # Ctrl+Option
     "log_level": "INFO",
 }
 
@@ -116,7 +116,7 @@ class Daemon:
         except Exception as e:
             log.error("Trackpad capture failed: %s", e)
 
-        log.info("All components started — press Cmd+Shift+F12 to toggle input seizure")
+        log.info("All components started — press Ctrl+Option+K to toggle input seizure")
 
     def stop(self):
         log.info("Stopping keybridgeBT mac-sender daemon")

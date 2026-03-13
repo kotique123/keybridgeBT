@@ -88,7 +88,7 @@ cat > "$CONTENTS/Info.plist" <<PLIST
 
     <!-- Accessibility — for hotkey and trackpad capture -->
     <key>NSAccessibilityUsageDescription</key>
-    <string>keybridgeBT needs Accessibility access to capture trackpad events and the global hotkey (Cmd+Shift+F12).</string>
+    <string>keybridgeBT needs Accessibility access to capture trackpad events and the global hotkey (Ctrl+Option+K).</string>
 
     <!-- Input Monitoring — for HID keyboard capture -->
     <key>NSInputMonitoringUsageDescription</key>

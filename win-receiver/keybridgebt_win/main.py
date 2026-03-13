@@ -107,8 +107,8 @@ class Daemon:
             self._decryptor = None
             self._awaiting_header = True
             self._header_buf = bytearray()
-        self._packet_reader.reset()
-        self._rate_limiter.reset()
+            self._packet_reader.reset()
+            self._rate_limiter.reset()
         log.info("Disconnected, all keys/buttons released")
 
     def _on_raw_data(self, data: bytes):
@@ -133,6 +133,9 @@ class Daemon:
 
     def _process_data(self, data: bytes):
         """Process framed data through the pipeline."""
+        if self._decryptor is None:
+            log.warning("_process_data called with no active decryptor, dropping")
+            return
         packets = self._packet_reader.feed(data)
         for ptype, seqno, ciphertext in packets:
             # Validate sequence number

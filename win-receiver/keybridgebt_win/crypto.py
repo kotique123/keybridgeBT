@@ -11,13 +11,14 @@ See docs/ARCHITECTURE.md §3 and docs/TASKS.md Task 4.
 
 import hashlib
 import logging
-import nacl.utils
-from nacl.public import PrivateKey, PublicKey, Box
+from nacl.public import PrivateKey, PublicKey
 from nacl.bindings import (
+    crypto_box_beforenm,
     crypto_secretstream_xchacha20poly1305_init_pull,
     crypto_secretstream_xchacha20poly1305_pull,
     crypto_secretstream_xchacha20poly1305_KEYBYTES,
     crypto_secretstream_xchacha20poly1305_HEADERBYTES,
+    crypto_secretstream_xchacha20poly1305_state,
 )
 
 log = logging.getLogger(__name__)
@@ -35,8 +36,8 @@ def derive_shared_key(private_key: bytes, peer_public_key: bytes) -> bytes:
     """X25519 DH → SHA-256 → 32-byte key suitable for crypto_secretstream."""
     sk = PrivateKey(private_key)
     pk = PublicKey(peer_public_key)
-    box = Box(sk, pk)
-    raw_shared = bytes(box.shared_key())
+    # crypto_box_beforenm computes HSalsa20(X25519(sk,pk), 0) — stable 32-byte shared secret
+    raw_shared = crypto_box_beforenm(pk.encode(), sk.encode())
     return hashlib.sha256(raw_shared).digest()
 
 
@@ -58,7 +59,8 @@ class StreamDecryptor:
             raise ValueError("shared_key must be 32 bytes")
         if len(header) != crypto_secretstream_xchacha20poly1305_HEADERBYTES:
             raise ValueError(f"header must be {crypto_secretstream_xchacha20poly1305_HEADERBYTES} bytes")
-        self._state = crypto_secretstream_xchacha20poly1305_init_pull(header, shared_key)
+        self._state = crypto_secretstream_xchacha20poly1305_state()
+        crypto_secretstream_xchacha20poly1305_init_pull(self._state, header, shared_key)
 
     def decrypt(self, ciphertext: bytes) -> bytes | None:
         """

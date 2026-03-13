@@ -10,14 +10,15 @@ See docs/ARCHITECTURE.md §3 for security architecture.
 """
 
 import hashlib
-import nacl.utils
-from nacl.public import PrivateKey, PublicKey, Box
+from nacl.public import PrivateKey, PublicKey
 from nacl.bindings import (
+    crypto_box_beforenm,
     crypto_secretstream_xchacha20poly1305_init_push,
     crypto_secretstream_xchacha20poly1305_push,
     crypto_secretstream_xchacha20poly1305_TAG_MESSAGE,
     crypto_secretstream_xchacha20poly1305_KEYBYTES,
     crypto_secretstream_xchacha20poly1305_HEADERBYTES,
+    crypto_secretstream_xchacha20poly1305_state,
 )
 
 
@@ -30,13 +31,12 @@ def generate_keypair() -> tuple[bytes, bytes]:
 def derive_shared_key(private_key: bytes, peer_public_key: bytes) -> bytes:
     """
     X25519 DH → SHA-256 → 32-byte key suitable for crypto_secretstream.
+    Uses crypto_box_beforenm which is the stable PyNaCl binding for DH.
     """
     sk = PrivateKey(private_key)
     pk = PublicKey(peer_public_key)
-    box = Box(sk, pk)
-    # Box.shared_key() returns the raw X25519 shared secret
-    raw_shared = bytes(box.shared_key())
-    # Hash to get a proper secretstream key
+    # crypto_box_beforenm computes HSalsa20(X25519(sk,pk), 0) — stable 32-byte shared secret
+    raw_shared = crypto_box_beforenm(pk.encode(), sk.encode())
     return hashlib.sha256(raw_shared).digest()
 
 
@@ -56,9 +56,8 @@ class StreamEncryptor:
     def __init__(self, shared_key: bytes):
         if len(shared_key) != crypto_secretstream_xchacha20poly1305_KEYBYTES:
             raise ValueError("shared_key must be 32 bytes")
-        state, header = crypto_secretstream_xchacha20poly1305_init_push(shared_key)
-        self._state = state
-        self._header = header
+        self._state = crypto_secretstream_xchacha20poly1305_state()
+        self._header = crypto_secretstream_xchacha20poly1305_init_push(self._state, shared_key)
 
     @property
     def header(self) -> bytes:

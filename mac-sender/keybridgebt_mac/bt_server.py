@@ -22,6 +22,10 @@ from CoreFoundation import (
 
 log = logging.getLogger(__name__)
 
+# RFCOMM channel ID advertised in the SDP record (1–30).
+# Both sides must agree on this value at pairing time.
+RFCOMM_CHANNEL_ID = 1
+
 try:
     import IOBluetooth
 except ImportError:
@@ -39,10 +43,24 @@ class RFCOMMDelegate(NSObject):
         self.server = server
         return self
 
-    def rfcommChannelOpenComplete_status_(self, channel, status):
-        if status == 0:
+    # ------------------------------------------------------------------ #
+    # Incoming-connection notification callback                           #
+    # Called by IOBluetooth when a client opens RFCOMM_CHANNEL_ID        #
+    # Signature matches registerForChannelOpenNotifications selector      #
+    # ------------------------------------------------------------------ #
+    def newRFCOMMChannelOpened_channel_(self, notification, channel):
+        log.info("Incoming RFCOMM channel notification received")
+        channel.setDelegate_(self)
+        result = channel.openChannel()
+        if result == 0:
             log.info("RFCOMM channel opened (ID %s)", channel.getChannelID())
             self.server._on_client_connected(channel)
+        else:
+            log.error("Failed to open incoming RFCOMM channel: %d", result)
+
+    def rfcommChannelOpenComplete_status_(self, channel, status):
+        if status == 0:
+            log.info("RFCOMM channel open complete")
         else:
             log.error("RFCOMM channel open failed: %d", status)
 
@@ -69,6 +87,7 @@ class RFCOMMServer:
         self._connected = threading.Event()
         self._lock = threading.Lock()
         self._sdp_handle = None
+        self._channel_notification = None
         self._first_pairing_done = False
         self._on_connect_callback = None
         self._on_disconnect_callback = None
@@ -155,15 +174,33 @@ class RFCOMMServer:
             "0004 - ProtocolDescriptorList": [
                 [IOBluetooth.IOBluetoothSDPUUID.uuid16_(0x0100)],
                 [IOBluetooth.IOBluetoothSDPUUID.uuid16_(0x0003),
-                 {"DataElementType": 1, "DataElementSize": 1, "DataElementValue": 1}],
+                 {"DataElementType": 1, "DataElementSize": 1,
+                  "DataElementValue": RFCOMM_CHANNEL_ID}],
             ],
             "0100 - ServiceName": self._service_name,
         }
-        result = IOBluetooth.IOBluetoothSDPServiceRecord.publishedServiceRecordWithDictionary_(
+        self._sdp_handle = IOBluetooth.IOBluetoothSDPServiceRecord.publishedServiceRecordWithDictionary_(
             service_dict
         )
-        if result is not None:
-            self._sdp_handle = result
+        if self._sdp_handle is None:
+            log.error("Failed to publish SDP service record")
+
+        # Register to be notified when a client opens our RFCOMM channel.
+        # The delegate's newRFCOMMChannelOpened_channel_() method will be called.
+        self._channel_notification = (
+            IOBluetooth.IOBluetoothRFCOMMChannel
+            .registerForChannelOpenNotifications_selector_withChannelID_direction_(
+                self._delegate,
+                "newRFCOMMChannelOpened_channel_",
+                RFCOMM_CHANNEL_ID,
+                IOBluetooth.kIOBluetoothUserNotificationChannelDirectionIncoming,
+            )
+        )
+        if self._channel_notification is None:
+            log.warning(
+                "Failed to register for incoming RFCOMM channel notifications "
+                "(channel ID %d). Connections will not be accepted.", RFCOMM_CHANNEL_ID
+            )
 
     def _on_client_connected(self, channel):
         if not self._enforce_link_encryption(channel):

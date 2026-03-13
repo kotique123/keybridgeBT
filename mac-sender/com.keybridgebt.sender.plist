@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
+        <string>/opt/keybridgebt/mac-sender/.venv/bin/python3</string>
         <string>-m</string>
         <string>keybridgebt_mac</string>
     </array>
